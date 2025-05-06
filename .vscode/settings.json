@@ -1,0 +1,10 @@
+{
+    // "codeium.enableCodeLens": false,
+    // "codeium.enableCommandSideHintEducation": false,
+    // "codeium.enableExplainProblem": false,
+    // "codeium.enableInComments": false,
+    "codeium.enableConfig": {
+        "*": true
+    },
+    "deno.enable": false,
+}
