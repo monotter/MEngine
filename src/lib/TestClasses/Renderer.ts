@@ -3,7 +3,6 @@ import { Camera } from '$lib/TestClasses/Objects/Camera'
 import { MaterialImporter } from './Importers'
 
 import { createPerspectiveMatrix, toMatrixString } from '$lib/Transformations'
-import { Triangle, Quad } from './Objects'
 
 export class Renderer {
 	adapter?: GPUAdapter
@@ -187,7 +186,7 @@ export class Renderer {
 			],
 		})
 	}
-	async render(RenderData: { Models: Float32Array; ModelCounts: Map<any, number>; View: Float32Array }) {
+	async render(RenderData) {
 		if (!this.device) throw new Error('Device not initialized')
 		if (!this.context) throw new Error('Context not initialized')
 		if (!this.pipeline) throw new Error('Pipeline not initialized')
@@ -200,7 +199,7 @@ export class Renderer {
 			(60 * Math.PI) / 180,
 			this.canvas.offsetWidth / this.canvas.offsetHeight
 		)
-		this.device.queue.writeBuffer(this.objectBuffer, 0, RenderData.Models, 0, RenderData.Models.length)
+		this.device.queue.writeBuffer(this.objectBuffer, 0, RenderData.VertexData, 0, RenderData.VertexData.length)
 		this.device.queue.writeBuffer(this.uniformBuffer, 0, RenderData.View)
 		this.device.queue.writeBuffer(this.uniformBuffer, 64, new Float32Array(projectionMatrix))
 
@@ -223,6 +222,7 @@ export class Renderer {
 		renderPass.setPipeline(this.pipeline)
 		renderPass.setBindGroup(0, this.frameBindGroup)
 		let objects_drawn: number = 0
+
 
 		renderPass.setVertexBuffer(0, Triangle.Mesh.buffer)
 		renderPass.setBindGroup(1, this.triangleMaterial?.bindGroup)

@@ -1,18 +1,23 @@
+import { EmitSignal } from '$lib/Signal'
 import { CFrame, Vector3 } from '$lib/Transformations'
-import { Instance, type InstanceEvents, type InstanceProperties } from '../Instance'
+import { Instance, type InstanceProperties } from '../Instance'
 
 export type Object3DProperties = InstanceProperties | 'CFrame' | 'Position' | 'Orientation'
-export type Object3DEvents = InstanceEvents
-export class Object3D<
-	Properties extends string = Object3DProperties,
-	Events extends string = Object3DEvents
-> extends Instance<Properties, Events> {
-	protected _CFrame?: CFrame
-	#PositionCache?: Vector3
-	#OrientationCache?: Vector3
+export class Object3D<Properties = Object3DProperties> extends Instance<Properties> {
 	constructor(className: string) {
 		super(className)
 	}
+
+	// #region Private Properties
+	#PositionCache?: Vector3
+	#OrientationCache?: Vector3
+	// #endregion
+
+	// #region Shared Properties
+	protected _CFrame?: CFrame
+	// #endregion
+
+	// #region Public Properties
 	get CFrame() {
 		if (!this._CFrame) {
 			this._CFrame = new CFrame()
@@ -35,10 +40,9 @@ export class Object3D<
 		this._CFrame = CFrame
 		this.#OrientationCache = undefined
 		this.#PositionCache = undefined
-
-		this._Events.Changed.emit('CFrame')
-		this._Events.Changed.emit('Position')
-		this._Events.Changed.emit('Orientation')
+		this._Changed && EmitSignal(this._Changed, 'CFrame' as Properties)
+		this._Changed && EmitSignal(this._Changed, 'Position' as Properties)
+		this._Changed && EmitSignal(this._Changed, 'Orientation' as Properties)
 	}
 	set Position(Position: Vector3Like) {
 		const PositionV = Vector3.asVector3(Position)
@@ -51,4 +55,11 @@ export class Object3D<
 		const [X, Y, Z] = OrientationV.toArray().map((v) => v * (Math.PI / 180))
 		this.CFrame = CFrame.fromOrientation(X, Y, Z).add(this.Position)
 	}
+	// #endregion
+
+	// #region Shared Methods
+	protected _DestroyEvents() {
+		super._DestroyEvents()
+	}
+	// #endregion
 }

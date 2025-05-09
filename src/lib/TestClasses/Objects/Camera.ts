@@ -7,7 +7,7 @@ export class Camera extends Object3D {
 	constructor() {
 		super('Camera')
 	}
-	get view() {
+	get viewTransform() {
 		return createViewMatrix(this.CFrame)
 	}
 }

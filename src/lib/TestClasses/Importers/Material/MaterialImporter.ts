@@ -25,7 +25,7 @@ export class MaterialImporter {
         );
         return texture;
     }
-    static async import(url: string, device: GPUDevice) {
+    static async import(url: string, device: GPUDevice): Promise<MaterialType> {
         const blob = await this.download(url);
         const texture = await this.loadImageBitmap(device, blob);
         const viewDescriptor: GPUTextureViewDescriptor = {

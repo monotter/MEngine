@@ -1,0 +1,28 @@
+# 4 üçgenin birleşik olduğu tek bir yüzey (quad strip gibi) - toplam 5 vertex, 4 üçgen
+o FourTriangles
+
+v 0.0 0.0 0.0
+v 1.0 0.0 0.0
+
+v 2.0 0.0 0.0
+
+v 3.0 0.0 0.0
+v 4.0 0.0 0.0
+
+v 0.5 1.0 0.0
+
+v 1.5 1.0 -1.0
+v 2.5 1.0 0.0
+v 3.5 1.0 -1.0
+
+f 1 6 2 7
+f 7 3 8 4
+f 4 9 5
+# # 1. üçgen
+# f 1 2 6
+# # 2. üçgen
+# f 2 3 7
+# # 3. üçgen
+# f 3 4 8
+# # 4. üçgen
+# f 4 5 9

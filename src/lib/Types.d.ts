@@ -47,3 +47,15 @@ type vec4 = [number, number, number, number]
 // import type { CFrame } from './Transformations/CFrame'
 // import type { Vector3 } from './Transformations/Vector3'
 // import type { Vector2 } from './Transformations/Vector2'
+type MaterialType = {
+    texture: GPUTexture;
+    view: GPUTextureView;
+    sampler: GPUSampler;
+    bindGroup: GPUBindGroup;
+    bindGroupLayout: GPUBindGroupLayout;
+}
+type MeshType = {
+	BufferLayout: GPUBufferLayout,
+	Buffer: GPUBuffer,
+	VertexCount: number,
+}

@@ -1,69 +1,39 @@
 import { Camera } from '$lib/TestClasses/Objects/Camera'
 import { CFrame, Vector3 } from '$lib/Transformations'
-import { Quad, Triangle } from './Objects'
+import type { MeshPart } from './Objects/Models/MeshPart';
 
 export class Scene {
-	triangle_count = 0
-	quad_count = 0
-	triangles: Triangle[]
-	Quads: Quad[]
 	s = 0;
 	camera: Camera
 	moveDirection = new Vector3()
 	moveSpeed = 0.5
 	yaw: number = 0
 	pitch: number = 0
-	object_data: Float32Array = new Float32Array(16 * 1024)
+	VerticiesData: Map<any, Float32Array> = new Map()
+	CurrentSlot: Map<any, number> = new Map()
+	ObjectSlotMap: Map<any, [number]> = new Map()
 	constructor() {
-		this.triangles = []
-		this.Quads = []
-
 		this.camera = new Camera()
 		this.camera.CFrame = new CFrame(new Vector3(0, 0, 4))
 		this.make_objects()
 		this.initializeControls()
 	}
+	addObject(object: MeshPart) {
+		object.Mesh.VertexCount
+		object.Material.texture
+	}
+	removeObject(object: MeshPart) {
+	}
+	updateObject(object: MeshPart) {
+		
+	}
 	make_objects() {
-		// Önce üçgenleri yaz
-		for (let i = 0; i < 4; i++) {
-			const triangle = new Triangle()
-			this.triangles.push(triangle)
-			triangle.Position = [i * 2, 0, 0]
-			triangle.Orientation = [0, 90, 0]
-			triangle.model.forEach((v, index) => {
-				let currindex = i * 16 + index // Sadece üçgen sayısı kadar offset
-				this.object_data[currindex] = v
-			})
-			this.triangle_count++
-		}
-		// Sonra quad'ları üçgenlerin bittiği yerden başlat
-		for (let i = 0; i < 2; i++) {
-			const quad = new Quad()
-			this.Quads.push(quad)
-			quad.Orientation = [90, 0, 0]
-			quad.Position = [i * 2, -1, 5]
-			quad.Size = [1, 1, 1]
-			quad.model.forEach((v, index) => {
-				let currindex = (this.triangle_count + i) * 16 + index // üçgenlerin sonundan başla
-				this.object_data[currindex] = v
-			})
-			this.quad_count++
-		}
+		
 	}
 	update() {
 		this.camera.CFrame = new CFrame(
 			this.camera.CFrame.Position.add(this.moveDirection.multiply(this.moveSpeed))
 		).multiply(CFrame.fromEulerAnglesYXZ(this.pitch, this.yaw, 0))
-
-		this.triangles.forEach((triangle, index) => {
-			triangle.Orientation = [0,0,0]
-			const object_data = triangle.model
-			for (let j = 0; j < 16; j++) this.object_data[index * 16 + j] = object_data[j]
-		})
-		this.Quads.forEach((quad, index) => {
-			const object_data = quad.model
-			for (let j = 0; j < 16; j++) this.object_data[(this.triangles.length + index) * 16 + j] = object_data[j]
-		})
 		this.s += 1;
 	}
 	initializeControls() {

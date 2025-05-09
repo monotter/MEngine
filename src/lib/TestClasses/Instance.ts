@@ -1,32 +1,49 @@
-import { Signal } from '$lib/Signal'
+import { DestroySignal, EmitSignal, Signal } from '$lib/Signal'
+
 export type InstanceProperties = 'Name' | 'Parent'
-export type InstanceEvents =
-	| 'AnchestryChanged'
-	| 'AttributeChanged'
-	| 'ChildAdded'
-	| 'ChildRemoved'
-	| 'DescendantAdded'
-	| 'DescendantRemoving'
-	| 'Changed'
-	| 'Destroying'
-export class Instance<Properties extends string = InstanceProperties, Events extends string = InstanceEvents> {
+export class Instance<Properties = InstanceProperties> {
+	constructor(readonly className: string) {
+		if (className === undefined) throw new Error('ClassName is required')
+		this.#Name = className
+	}
+	// #region Private Properties
 	#destroyed = false
-	#parent: Instance | null = null
-	#children = new Map<string, Instance>()
-	#anchestors: Instance[] = []
-	#fullName: string = ''
+	#parent?: Instance<unknown>
+	#children = new Map<string, Instance<unknown>>()
+	#ancestors: Instance<unknown>[] = []
+	#ancestorsPath: string = ''
+	#Name: string = ''
 	#Attributes: Map<string, any> = new Map()
-	#updateAnchestors() {
-		this.#anchestors = []
-		this.#fullName = this.Name
+	#descendants: Instance<unknown>[] = []
+	#uniqueId = crypto.randomUUID()
+	#propertyChangedSignals = new Map<Properties, Signal<any>>()
+	// #endregion
+
+	// #region Private Events
+	#AncestryChanged?: Signal<[Instance<unknown>, Instance<unknown> | undefined]>
+	#AttributeChanged?: Signal<[string]>
+	#ChildAdded?: Signal<[Instance<unknown>]>
+	#ChildRemoved?: Signal<[Instance<unknown>]>
+	#DescendantAdded?: Signal<[Instance<unknown>]>
+	#DescendantRemoving?: Signal<[Instance<unknown>]>
+	#Destroying?: Signal<[]>
+	// #endregion
+
+	// #region Shared Events
+	protected _Changed?: Signal<[Properties]>
+	// #endregion
+
+	// #region Private Methods
+	#updateAncestors() {
+		this.#ancestors = []
+		this.#ancestorsPath = this.Name
 		if (this.#parent) {
-			this.#parent.#updateAnchestors()
-			this.#fullName = this.#parent.#fullName + '.' + this.#fullName
-			this.#anchestors.push(this.#parent)
-			this.#anchestors.push(...this.#parent.#anchestors)
+			this.#parent.#updateAncestors()
+			this.#ancestorsPath = this.#parent.#ancestorsPath + '.' + this.#ancestorsPath
+			this.#ancestors.push(this.#parent)
+			this.#ancestors.push(...this.#parent.#ancestors)
 		}
 	}
-	#descendants: Instance[] = []
 	#updateDescendants() {
 		this.#descendants = []
 		this.#children.forEach((child) => {
@@ -35,40 +52,37 @@ export class Instance<Properties extends string = InstanceProperties, Events ext
 			this.#descendants.push(...child.#descendants)
 		})
 	}
-	#updateAnchestorsDescendants() {
+	#updateAncestorsDescendants() {
 		if (this.#parent) {
 			this.#parent.#updateDescendants()
-			this.#parent.#updateAnchestorsDescendants()
+			this.#parent.#updateAncestorsDescendants()
 		}
 	}
-	#updateDescendantsAnchestors() {
+	#updateDescendantsAncestors() {
 		this.#children.forEach((child) => {
-			child.#updateAnchestors()
-			child.#updateDescendantsAnchestors()
+			child.#updateAncestors()
+			child.#updateDescendantsAncestors()
 		})
 	}
-	#uniqueId = crypto.randomUUID()
-	Name: string
-	protected _Events = {
-		AnchestryChanged: new Signal<[Instance, Instance | null]>(),
-		AttributeChanged: new Signal<[string]>(),
-		ChildAdded: new Signal<[Instance]>(),
-		ChildRemoved: new Signal<[Instance]>(),
-		DescendantAdded: new Signal<[Instance]>(),
-		DescendantRemoving: new Signal<[Instance]>(),
-		Changed: new Signal<[Properties[number]]>(),
-		Destroying: new Signal<[]>(),
+	// #endregion
+
+	// #region Public Properties
+	set Name(name: string) {
+		if (this.#destroyed)
+			throw new Error('Instance is destroyed')
+		if (typeof name === 'undefined') throw new Error('Name is required')
+
+		this.#Name = name
+		this._Changed && EmitSignal(this._Changed, this as any)
 	}
-	get Events() {
-		const copy = { ...this._Events }
-		return copy
+	get Name() {
+		return this.#Name
 	}
-	constructor(readonly className: string) {
-		if (className === undefined) throw new Error('ClassName is required')
-		this.Name = className
-	}
-	set Parent(parent: Instance | null) {
-		if (parent === this) {
+	set Parent(parent: Instance<any> | undefined) {
+		if (parent && !(parent instanceof Instance)) {
+			throw new Error('Parent must be an instance of Instance')
+		}
+		if (parent && parent === this as any) {
 			throw new Error('Cannot set parent to itself')
 		}
 		if (this.#destroyed) {
@@ -80,18 +94,18 @@ export class Instance<Properties extends string = InstanceProperties, Events ext
 		if (this.#parent) {
 			this.#parent.#children.set(this.#uniqueId, this as any)
 			this.#parent.#updateDescendants()
-			this.#parent.#updateAnchestorsDescendants()
-			this.#parent._Events.ChildAdded.emit(this as any)
+			this.#parent.#updateAncestorsDescendants()
+			EmitSignal(this.#parent.ChildAdded, this as any)
 		}
-		this.#updateAnchestors()
-		this.#updateDescendantsAnchestors()
-		this._Events.Changed.emit('Parent')
-		this._Events.AnchestryChanged.emit(this as any, parent)
-		this.#anchestors.forEach((anchestor) => {
-			anchestor._Events.DescendantAdded.emit(this as any)
+		this.#updateAncestors()
+		this.#updateDescendantsAncestors()
+		this._Changed && EmitSignal(this._Changed, 'Parent' as Properties)
+		this.#AncestryChanged && EmitSignal(this.#AncestryChanged, this as any, parent)
+		this.#ancestors.forEach((ancestor) => {
+			ancestor.#DescendantAdded && EmitSignal(ancestor.#DescendantAdded, this as any)
 		})
 		this.#descendants.forEach((child) => {
-			child._Events.DescendantAdded.emit(this as any)
+			child.#AncestryChanged && EmitSignal(child.#AncestryChanged, this as any, parent)
 		})
 	}
 	get Parent() {
@@ -100,61 +114,64 @@ export class Instance<Properties extends string = InstanceProperties, Events ext
 	get UniqueId() {
 		return this.#uniqueId
 	}
-	#propertyChangedSignals = new Set<Signal<any>>()
+	// #endregion
+
+	// #region Public Methods
 	GetPropertyChangedSignal(propertyName: Properties) {
-		const propertySignal = new Signal()
-		this.Events.Changed.connect((changedProperty) => {
-			if (changedProperty === propertyName) {
-				propertySignal.emit()
-			}
-		})
-		this.#propertyChangedSignals.add(propertySignal)
+		let propertySignal = this.#propertyChangedSignals.get(propertyName)
+		if (!propertySignal) {
+			propertySignal = new Signal()
+			this.Changed.Connect((changedProperty: Properties) => {
+				if (changedProperty === propertyName) {
+					EmitSignal(propertySignal!)
+				}
+			})
+			this.#propertyChangedSignals.set(propertyName, propertySignal)
+		}
 		return propertySignal
 	}
 	ClearAllChildren() {
-		this.#children.forEach((child) => {
-			child.#parent = null
+		this.#descendants.forEach((child) => {
+			child.Parent = undefined
+			child.Destroy()
 		})
+		this.#descendants = []
 		this.#children.clear()
 		this.#updateDescendants()
-		this.#updateAnchestorsDescendants()
+		this.#updateAncestorsDescendants()
 	}
-	FindFirstAnchestor(name: string) {
-		return this.#anchestors.find((child) => child.Name === name) || null
+	FindFirstAncestor(name: string) {
+		return this.#ancestors.find((child) => child.Name === name) || null
 	}
-	FindFirstAnchestorOfClass(className: string) {
-		return this.#anchestors.find((child) => child.className === className) || null
+	FindFirstAncestorOfClass(className: string) {
+		return this.#ancestors.find((child) => child.className === className) || null
 	}
-	FindFirstAnchestorWhichIsA<T extends Instance>(_class: T) {
-		return (this.#anchestors.find((child) => child instanceof (_class as any)) as T) || null
+	FindFirstAncestorWhichIsA<T extends Instance<any>>(_class: T) {
+		return (this.#ancestors.find((child) => child instanceof (_class as any)) as T) || null
 	}
-	FindFirstChild(name: string, recursive = false): Instance | null {
+	FindFirstChild(name: string, recursive = false) {
 		if (recursive) {
-			return this.#descendants.find((child) => child.Name === name) || null
+			return this.#descendants.find((child) => child.Name === name) || undefined
 		} else {
-			let child = null
 			for (const child of this.#children.values()) {
 				if (child.Name === name) {
 					return child
 				}
 			}
-			return child
 		}
 	}
-	FindFirstChildOfClass(className: string, recursive = false): Instance | null {
+	FindFirstChildOfClass(className: string, recursive = false): Instance<unknown> | undefined {
 		if (recursive) {
-			return this.#descendants.find((child) => child.className === className) || null
+			return this.#descendants.find((child) => child.className === className)
 		} else {
-			let child = null
 			for (const child of this.#children.values()) {
 				if (child.className === className) {
 					return child
 				}
 			}
-			return child
 		}
 	}
-	FindFirstChildWhichIsA<T extends Instance>(_class: T, recursive = false): T | null {
+	FindFirstChildWhichIsA<T extends Instance<any>>(_class: new (...args: any[]) => T, recursive = false): T | null {
 		if (recursive) {
 			return (this.#descendants.find((child) => child instanceof (_class as any)) as T) || null
 		} else {
@@ -167,13 +184,13 @@ export class Instance<Properties extends string = InstanceProperties, Events ext
 			return child
 		}
 	}
-	FindFirstDescendant(name: string): Instance | null {
+	FindFirstDescendant(name: string): Instance<unknown> | undefined {
 		return this.FindFirstChild(name, true)
 	}
-	FindFirstDescendantOfClass(className: string): Instance | null {
+	FindFirstDescendantOfClass(className: string): Instance<unknown> | undefined {
 		return this.FindFirstChildOfClass(className, true)
 	}
-	FindFirstDescendantWhichIsA<T extends Instance>(_class: T): T | null {
+	FindFirstDescendantWhichIsA<T extends Instance<any>>(_class: new (...args: any[]) => T): T | null {
 		return this.FindFirstChildWhichIsA(_class, true)
 	}
 	GetAttribute<T>(name: string): T | undefined {
@@ -192,7 +209,7 @@ export class Instance<Properties extends string = InstanceProperties, Events ext
 		return [...this.#descendants]
 	}
 	GetFullName() {
-		return this.#fullName
+		return this.#ancestorsPath + this.#Name
 	}
 	GetTags() {
 		throw new Error('GetTags is not implemented')
@@ -200,38 +217,151 @@ export class Instance<Properties extends string = InstanceProperties, Events ext
 	HasTag(tag: string) {
 		throw new Error('HasTag is not implemented')
 	}
-	IsAnchestorOf(instance: Instance) {
-		return instance.#anchestors.includes(this)
+	IsAncestorOf(instance: Instance<any>) {
+		return instance.#ancestors.includes(this as any)
 	}
-	IsDescandantOf(instance: Instance) {
-		return instance.#descendants.includes(this)
+	IsDescandantOf(instance: Instance<any>) {
+		return instance.#descendants.includes(this as any)
 	}
 	RemoveTag(tag: string) {
 		throw new Error('RemoveTag is not implemented')
 	}
-	WaitForChild(name: string, timeout?: number): Promise<Instance | undefined> {
+	WaitForChild<timeout extends number | undefined>(name: string, recursive: boolean = false, timeout?: timeout): Promise<timeout extends number ? Instance<unknown> | undefined : Instance<unknown>> {
 		return new Promise((resolve) => {
-			this.Events.ChildAdded.connect((child) => {
+			const initialChild = this.FindFirstChild(name, recursive)
+			if (initialChild) {
+				return resolve(initialChild as any)
+			}
+			const disconnect = this.ChildAdded.Connect((child) => {
 				if (child.Name === name) {
-					resolve(child)
+					resolve(child as any)
+					disconnect()
 				}
 			})
+			if (timeout) {
+				setTimeout(() => {
+					resolve(undefined as any)
+					disconnect()
+				}, timeout)
+			}
+		})
+	}
+	WaitForChildOfClass<timeout extends number | undefined>(className: string, recursive: boolean = false, timeout?: timeout): Promise<timeout extends number ? Instance<unknown> | undefined : Instance<unknown>> {
+		return new Promise((resolve) => {
+			const initialChild = this.FindFirstChildOfClass(className, recursive)
+			if (initialChild) {
+				return resolve(initialChild as any)
+			}
+			const disconnect = this.ChildAdded.Connect((child) => {
+				if (child.className === className) {
+					resolve(child as any)
+					disconnect()
+				}
+			})
+			if (timeout) {
+				setTimeout(() => {
+					resolve(undefined as any)
+					disconnect()
+				}, timeout)
+			}
+		})
+	}
+	WaitForChildWhichIsA<timeout extends number | undefined, T extends Instance<unknown>>(_class: new (...args: any[]) => T, recursive: boolean = false, timeout?: timeout): Promise<timeout extends number ? Instance<unknown> | undefined : Instance<unknown>> {
+		return new Promise((resolve) => {
+			const initialChild = this.FindFirstChildWhichIsA(_class, recursive)
+			if (initialChild) {
+				return resolve(initialChild as any)
+			}
+			const disconnect = this.ChildAdded.Connect((child) => {
+				if (child instanceof (_class as any)) {
+					resolve(child as any)
+					disconnect()
+				}
+			})
+			if (timeout) {
+				setTimeout(() => {
+					resolve(undefined as any)
+					disconnect()
+				}, timeout)
+			}
 		})
 	}
 	Destroy() {
-		this._Events.Destroying.emit()
+		this.#Destroying && EmitSignal(this.#Destroying)
 		this.#descendants.forEach((child) => {
 			child.Destroy()
 		})
-		this.Parent = null
+		this.Parent = undefined
 		this.#children.clear()
-		for (const key in this._Events) {
-			const signal = this._Events[key as keyof typeof this._Events]
-			signal.destroy()
-		}
-		for (const signal of this.#propertyChangedSignals) {
-			signal.destroy()
-		}
+
+		this._DestroyEvents()
+		this.#propertyChangedSignals.forEach((signal) => {
+			DestroySignal(signal)
+		})
 		this.#destroyed = true
 	}
+	// #endregion
+
+	// #region Shared Methods
+	protected _DestroyEvents() {
+		this.#AncestryChanged && EmitSignal(this.#AncestryChanged, this as any, undefined)
+		this.#AttributeChanged && EmitSignal(this.#AttributeChanged, this as any)
+		this.#ChildAdded && EmitSignal(this.#ChildAdded, this as any)
+		this.#ChildRemoved && EmitSignal(this.#ChildRemoved, this as any)
+		this.#DescendantAdded && EmitSignal(this.#DescendantAdded, this as any)
+		this.#DescendantRemoving && EmitSignal(this.#DescendantRemoving, this as any)
+		this._Changed && EmitSignal(this._Changed, this as any)
+	}
+	// #endregion
+
+	// #region Public Events
+	get AncestryChanged() {
+		if (!this.#AncestryChanged) {
+			this.#AncestryChanged = new Signal()
+		}
+		return this.#AncestryChanged
+	}
+	get AttributeChanged() {
+		if (!this.#AttributeChanged) {
+			this.#AttributeChanged = new Signal()
+		}
+		return this.#AttributeChanged
+	}
+	get ChildAdded() {
+		if (!this.#ChildAdded) {
+			this.#ChildAdded = new Signal()
+		}
+		return this.#ChildAdded
+	}
+	get ChildRemoved() {
+		if (!this.#ChildRemoved) {
+			this.#ChildRemoved = new Signal()
+		}
+		return this.#ChildRemoved
+	}
+	get DescendantAdded() {
+		if (!this.#DescendantAdded) {
+			this.#DescendantAdded = new Signal()
+		}
+		return this.#DescendantAdded
+	}
+	get DescendantRemoving() {
+		if (!this.#DescendantRemoving) {
+			this.#DescendantRemoving = new Signal()
+		}
+		return this.#DescendantRemoving
+	}
+	get Changed() {
+		if (!this._Changed) {
+			this._Changed = new Signal()
+		}
+		return this._Changed
+	}
+	get Destroying() {
+		if (!this.#Destroying) {
+			this.#Destroying = new Signal()
+		}
+		return this.#Destroying
+	}
+	// #endregion
 }

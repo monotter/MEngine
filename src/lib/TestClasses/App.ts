@@ -1,5 +1,5 @@
 import { updateFunctions } from '$lib/RenderUpdate'
-import { Quad, Triangle } from './Objects'
+import { Materials } from './Objects/Materials'
 import { Renderer } from './Renderer'
 import { Scene } from './Scene'
 
@@ -14,22 +14,19 @@ export class App {
 	}
 	async Initialize() {
 		await this.renderer.Initialize()
+		Materials.initialize(this.renderer.device!)
 		updateFunctions.set('mainapprun', () => {
 			this.run()
 		})
 	}
 	run() {
 		this.scene.update()
-		this.scene.quad_count
-		this.scene.triangle_count
-
+		this.scene.ObjectMap
+		this.scene.VertexData
 		this.renderer.render({
-			Models: this.scene.object_data,
-			ModelCounts: new Map([
-				[Triangle, this.scene.triangle_count],
-				[Quad, this.scene.quad_count],
-			]),
-			View: new Float32Array(this.scene.camera.view),
+			VertexData: this.scene.VertexData,
+			ObjectMap: this.scene.ObjectMap,
+			View: new Float32Array(this.scene.camera.viewTransform),
 		})
 	}
 }
