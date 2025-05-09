@@ -6,8 +6,10 @@
 
 @compute @workgroup_size(1)
 fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
-    // Write 1.0 to all elements of ModelTransformsArray
     let ModelTransformMatrix = ModeTransformMatrixArray[global_id.x];
 
-    ModelViewProjectArray[global_id.x] = ProjectionMatrix * ViewTransformMatrix * ModelTransformMatrix;
+    ModelViewProjectArray[global_id.x] = ProjectionMatrix * ViewTransformMatrix * ModelTransformMatrix; // Tam hesaplamayı geri yükle
+
+    // Hata ayıklama için: ModelViewProjectArray'ı yalnızca ModelTransformMatrix olarak ayarlayın - YORUM SATIRI YAPILDI
+    // ModelViewProjectArray[global_id.x] = ModelTransformMatrix;
 }

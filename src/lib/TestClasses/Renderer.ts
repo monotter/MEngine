@@ -1,4 +1,4 @@
-import shader from '$lib/Shaders/shaders.wgsl?raw'
+import shader from '$lib/Shaders/VertexFragment.wgsl?raw'
 import { Camera } from '$lib/TestClasses/Objects/Camera'
 import { MaterialImporter } from './Importers'
 
