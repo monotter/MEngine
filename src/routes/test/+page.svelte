@@ -1,5 +1,5 @@
 <div class="w-screen h-screen bg-neutral-900">
-    <canvas id="myCanvas" width="500" height="500"></canvas>
+    <canvas id="myCanvas" class="w-full h-full"></canvas>
 </div>
 <script lang="ts">
     import { onMount } from 'svelte';
